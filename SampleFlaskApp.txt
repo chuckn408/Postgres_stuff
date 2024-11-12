@@ -1,0 +1,66 @@
+01 from flask import Flask, request, jsonify, send_from_directory
+02 from flask_sqlalchemy import SQLAlchemy
+03 from flask_cors import CORS
+04 from sqlalchemy.dialects.postgresql import JSONB
+05
+06 app = Flask(__name__, static_url_path='', static_folder='static')
+07 CORS(app) # Initialize CORS with default parameters
+08
+09 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://
+taskuser:taskpassword@postgres/taskdb'
+10 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+11 db = SQLAlchemy(app)
+12
+13 class Task(db.Model):
+14 id = db.Column(db.Integer, primary_key=True)
+15 name = db.Column(JSONB, nullable=False) # Change to JSONB
+16 parent_id = db.Column(db.Integer, db.ForeignKey('task.id'),
+nullable=True)
+17 subtasks = db.relationship('Task', backref=db.backref('parent',
+remote_side=[id]), lazy=True)
+18
+19 with app.app_context():
+20 db.create_all()
+21
+22 @app.route('/tasks', methods=['POST'])
+23 def create_task():
+24 data = request.get_json()
+25 task = Task(name=data['name'], parent_id=data.get('parent_id'))
+26 db.session.add(task)
+27 db.session.commit()
+28 return jsonify({'id': task.id, 'name': task.name, 'parent_id': task.
+parent_id}), 201
+29
+30 @app.route('/tasks', methods=['GET'])
+31 def get_tasks():
+32 tasks = Task.query.all()
+33 tasks_list = []
+34 for task in tasks:
+35 tasks_list.append({
+36 'id': task.id,
+37 'name': task.name,
+38 'parent_id': task.parent_id
+39 })
+40 return jsonify(tasks_list)
+41
+42 @app.route('/tasks/<int:task_id>', methods=['GET'])
+43 def get_task_with_subtasks(task_id):
+44 task = Task.query.get(task_id)
+45 if not task:
+46 return jsonify({'message': 'Task not found'}), 404
+47
+48 def serialize_task(task):
+49 return {
+50 'id': task.id,
+51 'name': task.name,
+52 'subtasks': [serialize_task(subtask) for subtask in task.subtasks]
+53 }
+54
+55 return jsonify(serialize_task(task))
+56
+57 @app.route('/')
+58 def index():
+59 return send_from_directory('static', 'index.html')
+60
+61 if __name__ == '__main__':
+62 app.run(debug=True)

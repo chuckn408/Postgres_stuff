@@ -1,0 +1,7 @@
+docker pull postgres
+
+docker run --name mypostgres
+-e POSTGRES_PASSWORD=mypassword
+-d postgres
+
+docker exec -it mypostgres psql -U postgres
